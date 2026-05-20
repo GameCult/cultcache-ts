@@ -351,7 +351,7 @@ function InspectionView({
           title="CultCache Structure"
           viewportBackdrop={<HuginnField />}
           viewportBackground="#03070a"
-          layoutMode={{ architecture: "layered", dataflow: "combined-force" }}
+          layoutMode={{ architecture: "force", dataflow: "force" }}
           motion={{
             strength: 1.24,
             damping: 0.88,
