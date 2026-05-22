@@ -10,6 +10,8 @@ type Selection = {
   record: number;
 };
 
+type NodeArticle = NonNullable<Parameters<typeof EpiphanyGraphViewer>[0]["nodeArticle"]>;
+
 type RawSelection =
   | { kind: "record"; index: number }
   | { kind: "value"; recordIndex: number; path: string; value: unknown };
@@ -273,41 +275,6 @@ function InspectionView({
   setSelection: (selection: Selection) => void;
   onInspectFile: (file: File) => Promise<void>;
 }) {
-  const expandedRawSelection = graphSelection?.kind === "node"
-    ? graphProjection.nodeSelections.get(graphSelection.nodeId)
-    : graphSelection?.kind === "edge"
-      ? graphProjection.edgeSelections.get(graphSelection.edgeId)
-      : undefined;
-  const expandedRecord = expandedRawSelection?.kind === "record"
-    ? inspection.records[expandedRawSelection.index]
-    : expandedRawSelection?.kind === "value"
-      ? inspection.records[expandedRawSelection.recordIndex]
-      : undefined;
-  const expandedValue = expandedRawSelection?.kind === "value"
-    ? {
-        path: expandedRawSelection.path,
-        value: expandedRawSelection.value,
-      }
-    : undefined;
-  const expandedCatalogEntry = expandedRecord
-    ? inspection.catalog.find((entry) => entry.schemaId === expandedRecord.schemaId)
-    : undefined;
-  const expandedNode = graphSelection?.kind === "node"
-    ? {
-        graphKey: graphSelection.graphKey,
-        nodeId: graphSelection.nodeId,
-        className: "huginn-expanded-node",
-        ariaLabel: "Selected CultCache node",
-        content: (
-          <ExpandedNodePanel
-            catalogEntry={expandedCatalogEntry}
-            expandedValue={expandedValue}
-            inspection={inspection}
-            record={expandedRecord}
-          />
-        ),
-      }
-    : undefined;
   const selectRaw = (next: Extract<RawSelection, { kind: "record" }>) => {
     setSelection({ record: next.index });
     setGraphSelection({
@@ -338,6 +305,35 @@ function InspectionView({
       return;
     }
   };
+  const nodeArticle: NodeArticle = {
+    className: "huginn-expanded-node",
+    ariaLabel: (node) => `${node.title} CultCache detail`,
+    content: (node) => {
+      const rawSelection = graphProjection.nodeSelections.get(node.id);
+      const record = rawSelection?.kind === "record"
+        ? inspection.records[rawSelection.index]
+        : rawSelection?.kind === "value"
+          ? inspection.records[rawSelection.recordIndex]
+          : undefined;
+      const expandedValue = rawSelection?.kind === "value"
+        ? {
+            path: rawSelection.path,
+            value: rawSelection.value,
+          }
+        : undefined;
+      const catalogEntry = record
+        ? inspection.catalog.find((entry) => entry.schemaId === record.schemaId)
+        : undefined;
+      return (
+        <ExpandedNodePanel
+          catalogEntry={catalogEntry}
+          expandedValue={expandedValue}
+          inspection={inspection}
+          record={record}
+        />
+      );
+    },
+  };
 
   return (
     <div className="inspector-stage">
@@ -363,9 +359,7 @@ function InspectionView({
           }}
           overlayPanels
           showSidebar={false}
-          focusSelection
-          selectionFocusMode="article"
-          expandedNode={expandedNode}
+          nodeArticle={nodeArticle}
           graphLabels={{ architecture: "File", dataflow: "Payload Cloud" }}
           style={{ minHeight: "100vh" }}
         />
