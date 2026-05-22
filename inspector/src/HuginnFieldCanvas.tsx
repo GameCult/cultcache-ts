@@ -816,7 +816,7 @@ async function startGpuParticleField(canvas: HTMLCanvasElement, sample: FieldSam
   const detailController = attachDetailController(canvas, (nextDetail) => {
     targetDetail = nextDetail;
   });
-  const envelopeListener = attachNodeEnvelopeListener(canvas, nodeEnvelopeState, device, nodeEnvelopeBuffer);
+  const envelopeListener = attachNodeEnvelopeListener(canvas, nodeEnvelopeState, device, nodeEnvelopeBuffer, transformState);
   const transformListener = attachViewportTransformListener(canvas, transformState);
 
   const frame = (time: number) => {
@@ -834,10 +834,11 @@ async function startGpuParticleField(canvas: HTMLCanvasElement, sample: FieldSam
           x: 0,
           y: 0,
           scale: 1,
-          bounds: { x: 0, y: 0, width: canvas.width, height: canvas.height },
+          bounds: fallbackGraphBounds(canvas),
         };
     const bounds = fitArtworkBounds(graphTransform.bounds);
-    const activeParticleCount = estimateVisibleParticleCount(graphTransform, bounds, canvas, detail, PARTICLE_COUNT);
+    const renderTransform = scaleViewportTransformForCanvas(canvas, graphTransform);
+    const activeParticleCount = estimateVisibleParticleCount(renderTransform, bounds, canvas, detail, PARTICLE_COUNT);
     device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([
       time / 1000,
       dt,
@@ -853,9 +854,9 @@ async function startGpuParticleField(canvas: HTMLCanvasElement, sample: FieldSam
       bounds.y,
       bounds.width,
       bounds.height,
-      graphTransform.x,
-      graphTransform.y,
-      graphTransform.scale,
+      renderTransform.x,
+      renderTransform.y,
+      renderTransform.scale,
       0,
     ]));
 
@@ -975,6 +976,7 @@ function attachNodeEnvelopeListener(
   state: { data: Float32Array; count: number },
   device: any,
   buffer: any,
+  transformState: { received: boolean; current: GraphViewportTransform },
 ): () => void {
   const target = canvas.parentElement ?? canvas;
   const onEnvelopes = (event: Event) => {
@@ -984,18 +986,43 @@ function attachNodeEnvelopeListener(
     }
     state.data.fill(0);
     state.count = Math.min(MAX_NODE_ENVELOPES, envelopes.length);
+    const viewport = canvas.getBoundingClientRect();
+    const graphTransform = transformState.current;
+    const artworkBounds = fitArtworkBounds(graphTransform.bounds);
     for (let index = 0; index < state.count; index += 1) {
       const envelope = envelopes[index];
       const offset = index * 4;
-      state.data[offset] = clamp01(envelope.x);
-      state.data[offset + 1] = clamp01(envelope.y);
-      state.data[offset + 2] = Math.max(0.006, Math.min(0.32, envelope.radius));
+      const uv = transformState.received
+        ? screenEnvelopeToArtworkUv(envelope, viewport, graphTransform, artworkBounds)
+        : { x: clamp01(envelope.x), y: clamp01(envelope.y), radius: Math.max(0.006, Math.min(0.32, envelope.radius)) };
+      state.data[offset] = uv.x;
+      state.data[offset + 1] = uv.y;
+      state.data[offset + 2] = uv.radius;
       state.data[offset + 3] = Math.max(0, Math.min(1.6, envelope.strength));
     }
     device.queue.writeBuffer(buffer, 0, state.data);
   };
   target.addEventListener("epiphanygraph-node-envelopes", onEnvelopes as EventListener);
   return () => target.removeEventListener("epiphanygraph-node-envelopes", onEnvelopes as EventListener);
+}
+
+function screenEnvelopeToArtworkUv(
+  envelope: NodeEnvelope,
+  viewport: DOMRect,
+  transform: GraphViewportTransform,
+  bounds: ReturnType<typeof fitArtworkBounds>,
+) {
+  const scale = Math.max(0.0001, transform.scale);
+  const screenX = envelope.x * Math.max(1, viewport.width);
+  const screenY = envelope.y * Math.max(1, viewport.height);
+  const worldX = (screenX - transform.x) / scale;
+  const worldY = (screenY - transform.y) / scale;
+  const radiusWorld = envelope.radius * Math.max(1, Math.min(viewport.width, viewport.height)) / scale;
+  return {
+    x: clamp01((worldX - bounds.x) / bounds.width),
+    y: clamp01((worldY - bounds.y) / bounds.height),
+    radius: Math.max(0.006, Math.min(0.32, radiusWorld / Math.max(bounds.width, bounds.height))),
+  };
 }
 
 function attachViewportTransformListener(
@@ -1046,6 +1073,30 @@ function fitArtworkBounds(bounds: GraphViewportTransform["bounds"]) {
     y: bounds.y + height * 0.5 - side * 0.5,
     width: side,
     height: side,
+  };
+}
+
+function fallbackGraphBounds(canvas: HTMLCanvasElement): GraphViewportTransform["bounds"] {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: 0,
+    y: 0,
+    width: Math.max(1, rect.width),
+    height: Math.max(1, rect.height),
+  };
+}
+
+function scaleViewportTransformForCanvas(
+  canvas: HTMLCanvasElement,
+  transform: GraphViewportTransform,
+): GraphViewportTransform {
+  const rect = canvas.getBoundingClientRect();
+  const pixelRatio = canvas.width / Math.max(1, rect.width);
+  return {
+    x: transform.x * pixelRatio,
+    y: transform.y * pixelRatio,
+    scale: transform.scale * pixelRatio,
+    bounds: transform.bounds,
   };
 }
 
