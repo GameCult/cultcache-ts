@@ -21,10 +21,14 @@ type GraphProjection = {
   recordNodeIds: string[];
   nodeSelections: Map<string, RawSelection>;
   edgeSelections: Map<string, RawSelection>;
-  truncatedValueNodes: number;
+  collapsedPayloadValues: number;
 };
 
-const MAX_EXPANDED_VALUE_NODES = 960;
+const MAX_PAYLOAD_REGION_NODES = 160;
+const MAX_RECORD_REGION_NODES = 32;
+const MAX_PAYLOAD_REGION_DEPTH = 3;
+const MAX_PAYLOAD_REGION_CHILDREN = 10;
+const MAX_NESTED_PAYLOAD_REGION_CHILDREN = 6;
 const assetPath = (name: string) => `${import.meta.env.BASE_URL}${name}`;
 const HUGINN_ART = {
   surface: assetPath("huginn-surface.png"),
@@ -363,9 +367,9 @@ function InspectionView({
           graphLabels={{ architecture: "File", dataflow: "Payload Cloud" }}
           style={{ minHeight: "100vh" }}
         />
-        {graphProjection.truncatedValueNodes > 0 ? (
+        {graphProjection.collapsedPayloadValues > 0 ? (
           <div className="graph-warning">
-            Payload cloud clipped after {MAX_EXPANDED_VALUE_NODES} value nodes; {graphProjection.truncatedValueNodes} deeper node(s) omitted from the graph. Raw payload detail remains in the expanded record panel.
+            Payload cloud collapsed {graphProjection.collapsedPayloadValues} leaf/deep value(s) into article detail. The graph shows records and inspectable regions, not every scalar slot.
           </div>
         ) : null}
       </section>
@@ -541,10 +545,7 @@ function buildGraphProjection(inspection: CultCacheInspection): GraphProjection 
   const recordNodeIds: string[] = [];
   const nodeSelections = new Map<string, RawSelection>();
   const edgeSelections = new Map<string, RawSelection>();
-  const budget = {
-    remainingValueNodes: MAX_EXPANDED_VALUE_NODES,
-    truncatedValueNodes: 0,
-  };
+  let collapsedPayloadValues = 0;
   const architectureNodes: EpiphanyGraphNode[] = [
     {
       id: "store",
@@ -586,7 +587,7 @@ function buildGraphProjection(inspection: CultCacheInspection): GraphProjection 
   dataflowNodes.push({
     id: "store",
     title: ".cc Store",
-    purpose: `Payload cloud for ${inspection.format} snapshot.`,
+    purpose: `Payload regions for ${inspection.format} snapshot.`,
     mechanism: inspection.filePath,
     status: `${inspection.fileSizeBytes} bytes`,
   });
@@ -594,8 +595,11 @@ function buildGraphProjection(inspection: CultCacheInspection): GraphProjection 
     const currentRecordNodeId = recordNodeId(record, recordIndex);
     const recordSelection: RawSelection = { kind: "record", index: recordIndex };
     const perRecordBudget = {
-      remainingValueNodes: Math.max(24, Math.floor(MAX_EXPANDED_VALUE_NODES / Math.max(1, inspection.records.length))),
-      truncatedValueNodes: 0,
+      remainingRegionNodes: Math.min(
+        MAX_RECORD_REGION_NODES,
+        Math.floor(MAX_PAYLOAD_REGION_NODES / Math.max(1, inspection.records.length)),
+      ),
+      collapsedPayloadValues: 0,
     };
     recordNodeIds[recordIndex] = currentRecordNodeId;
     nodeSelections.set(currentRecordNodeId, recordSelection);
@@ -615,7 +619,7 @@ function buildGraphProjection(inspection: CultCacheInspection): GraphProjection 
       kind: "contains",
       label: "record",
     });
-    appendValueTree({
+    appendPayloadRegions({
       nodes: dataflowNodes,
       edges: dataflowEdges,
       nodeSelections,
@@ -627,7 +631,7 @@ function buildGraphProjection(inspection: CultCacheInspection): GraphProjection 
       depth: 0,
       budget: perRecordBudget,
     });
-    budget.truncatedValueNodes += perRecordBudget.truncatedValueNodes;
+    collapsedPayloadValues += perRecordBudget.collapsedPayloadValues;
   });
 
   return {
@@ -639,11 +643,11 @@ function buildGraphProjection(inspection: CultCacheInspection): GraphProjection 
     recordNodeIds,
     nodeSelections,
     edgeSelections,
-    truncatedValueNodes: budget.truncatedValueNodes,
+    collapsedPayloadValues,
   };
 }
 
-function appendValueTree({
+function appendPayloadRegions({
   nodes,
   edges,
   nodeSelections,
@@ -664,92 +668,120 @@ function appendValueTree({
   value: unknown;
   path: string;
   depth: number;
-  budget: { remainingValueNodes: number; truncatedValueNodes: number };
+  budget: { remainingRegionNodes: number; collapsedPayloadValues: number };
 }): void {
-  if (depth > 5) {
-    budget.truncatedValueNodes += countExpandableChildren(value);
+  if (depth >= MAX_PAYLOAD_REGION_DEPTH) {
+    budget.collapsedPayloadValues += countPayloadDescendants(value);
     return;
   }
 
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => {
-      if (!takeValueNodeBudget(budget, item)) {
-        return;
-      }
-      const childPath = `${path}[${index}]`;
-      const childId = nodeId("value", `${parentId}:${childPath}`);
-      const rawSelection: RawSelection = { kind: "value", recordIndex, path: childPath, value: item };
-      nodeSelections.set(childId, rawSelection);
-      nodes.push(valueNode(childId, `[${index}]`, item, childPath));
-      const edge = valueEdge(parentId, childId, "slot", index.toString());
-      edgeSelections.set(edge.id!, rawSelection);
-      edges.push(edge);
-      appendValueTree({ nodes, edges, nodeSelections, edgeSelections, recordIndex, parentId: childId, value: item, path: childPath, depth: depth + 1, budget });
-    });
+  const entries = payloadRegionEntries(value, path);
+  if (!entries.length) {
     return;
   }
 
-  if (isPlainObject(value)) {
-    for (const [key, item] of Object.entries(value)) {
-      if (!takeValueNodeBudget(budget, item)) {
-        continue;
-      }
-      const childPath = `${path}.${key}`;
-      const childId = nodeId("value", `${parentId}:${childPath}`);
-      const rawSelection: RawSelection = { kind: "value", recordIndex, path: childPath, value: item };
-      nodeSelections.set(childId, rawSelection);
-      nodes.push(valueNode(childId, key, item, childPath));
-      const edge = valueEdge(parentId, childId, "field", key);
-      edgeSelections.set(edge.id!, rawSelection);
-      edges.push(edge);
-      appendValueTree({ nodes, edges, nodeSelections, edgeSelections, recordIndex, parentId: childId, value: item, path: childPath, depth: depth + 1, budget });
+  let emittedChildren = 0;
+  const childLimit = depth === 0 ? MAX_PAYLOAD_REGION_CHILDREN : MAX_NESTED_PAYLOAD_REGION_CHILDREN;
+  for (const entry of entries) {
+    if (!isGraphworthyRegion(entry.value, depth)) {
+      budget.collapsedPayloadValues += 1 + countPayloadDescendants(entry.value);
+      continue;
     }
+
+    if (budget.remainingRegionNodes <= 0 || emittedChildren >= childLimit) {
+      budget.collapsedPayloadValues += 1 + countPayloadDescendants(entry.value);
+      continue;
+    }
+
+    budget.remainingRegionNodes -= 1;
+    emittedChildren += 1;
+    const childId = nodeId("region", `${parentId}:${entry.path}`);
+    const rawSelection: RawSelection = { kind: "value", recordIndex, path: entry.path, value: entry.value };
+    nodeSelections.set(childId, rawSelection);
+    nodes.push(regionNode(childId, entry.label, entry.value, entry.path));
+    const edge = valueEdge(parentId, childId, entry.kind, entry.label);
+    edgeSelections.set(edge.id!, rawSelection);
+    edges.push(edge);
+    appendPayloadRegions({
+      nodes,
+      edges,
+      nodeSelections,
+      edgeSelections,
+      recordIndex,
+      parentId: childId,
+      value: entry.value,
+      path: entry.path,
+      depth: depth + 1,
+      budget,
+    });
   }
 }
 
-function takeValueNodeBudget(
-  budget: { remainingValueNodes: number; truncatedValueNodes: number },
+function payloadRegionEntries(
   value: unknown,
-): boolean {
-  if (budget.remainingValueNodes <= 0) {
-    budget.truncatedValueNodes += 1 + countExpandableChildren(value);
+  path: string,
+): Array<{ label: string; value: unknown; path: string; kind: "field" | "slot" }> {
+  if (Array.isArray(value)) {
+    return value.map((item, index) => ({
+      label: `[${index}]`,
+      value: item,
+      path: `${path}[${index}]`,
+      kind: "slot",
+    }));
+  }
+  if (isPlainObject(value)) {
+    return Object.entries(value).map(([key, item]) => ({
+      label: key,
+      value: item,
+      path: `${path}.${key}`,
+      kind: "field",
+    }));
+  }
+  return [];
+}
+
+function isGraphworthyRegion(value: unknown, depth: number): boolean {
+  if (!Array.isArray(value) && !isPlainObject(value)) {
     return false;
   }
-
-  budget.remainingValueNodes -= 1;
-  return true;
+  const directChildren = payloadRegionEntries(value, "payload").length;
+  if (directChildren >= (depth === 0 ? 2 : 4)) {
+    return true;
+  }
+  return countPayloadDescendants(value, 64) >= 10;
 }
 
-function countExpandableChildren(value: unknown): number {
-  if (Array.isArray(value)) {
-    return value.length;
+function countPayloadDescendants(value: unknown, limit = 20_000): number {
+  let count = 0;
+  const stack: unknown[] = [value];
+  while (stack.length && count < limit) {
+    const current = stack.pop();
+    const children = Array.isArray(current)
+      ? current
+      : isPlainObject(current)
+        ? Object.values(current)
+        : [];
+    for (const child of children) {
+      count += 1;
+      if (Array.isArray(child) || isPlainObject(child)) {
+        stack.push(child);
+      }
+      if (count >= limit) {
+        break;
+      }
+    }
   }
-  if (isPlainObject(value)) {
-    return Object.keys(value).length;
-  }
-  return 0;
+  return count;
 }
 
-function valueNode(id: string, title: string, value: unknown, path: string): EpiphanyGraphNode {
+function regionNode(id: string, title: string, value: unknown, path: string): EpiphanyGraphNode {
   return {
     id,
-    title: valueTitle(title, value),
+    title,
     purpose: valuePurpose(value),
     mechanism: path,
-    status: valueStatus(value),
+    status: `${valueStatus(value)} / ${countPayloadDescendants(value)} values`,
   };
-}
-
-function valueTitle(title: string, value: unknown): string {
-  if (Array.isArray(value) || isPlainObject(value)) {
-    return title;
-  }
-  if (value === null) {
-    return `${title}: null`;
-  }
-  const rendered = typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
-  const compact = rendered.length > 72 ? `${rendered.slice(0, 69)}...` : rendered;
-  return `${title}: ${compact}`;
 }
 
 function recordNodeId(record: InspectedRecord, index: number): string {
@@ -799,7 +831,7 @@ function emptyGraphProjection(): GraphProjection {
     recordNodeIds: [],
     nodeSelections: new Map(),
     edgeSelections: new Map(),
-    truncatedValueNodes: 0,
+    collapsedPayloadValues: 0,
   };
 }
 
