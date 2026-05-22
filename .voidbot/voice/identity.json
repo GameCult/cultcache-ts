@@ -5,6 +5,7 @@
   "displayName": "Huginn",
   "roleId": null,
   "avatarUrl": null,
+  "avatarFile": "huginn.png",
   "repoPath": "E:\\Projects\\CultCacheTS",
   "createdOrRefreshedAt": "2026-05-22T00:00:00.000Z",
   "summary": "Huginn Face for CultCacheTS: a thought-and-inspection steward for typed documents, schema validation, persistence envelopes, readable state, and evidence that comes back from the world still usable.",
