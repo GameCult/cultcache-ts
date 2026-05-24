@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { decode, encode } from "@msgpack/msgpack";
@@ -22,6 +22,7 @@ const legacyEnvelopeArraySchema = z.array(
     storedAt: z.string().min(1),
   }),
 );
+const transientReplaceErrorCodes = new Set(["EBUSY", "EPERM", "EACCES"]);
 
 export class SingleFileMessagePackBackingStore implements CacheBackingStore {
   readonly filePath: string;
@@ -129,12 +130,62 @@ export class SingleFileMessagePackBackingStore implements CacheBackingStore {
 
     try {
       await writeFile(tempPath, encode(entries));
-      await rename(tempPath, this.filePath);
+      await replaceFileWithRetry(tempPath, this.filePath);
     } catch (error) {
       await rm(tempPath, { force: true }).catch(() => undefined);
       throw error;
     }
   }
+}
+
+async function replaceFileWithRetry(sourcePath: string, targetPath: string): Promise<void> {
+  const delays = [25, 75, 150, 300, 600];
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+    try {
+      await rename(sourcePath, targetPath);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!isTransientReplaceError(error) || attempt === delays.length) {
+        break;
+      }
+
+      await delay(delays[attempt] ?? 0);
+    }
+  }
+
+  if (isTransientReplaceError(lastError)) {
+    try {
+      await copyFile(sourcePath, targetPath);
+      await rm(sourcePath, { force: true });
+      return;
+    } catch (copyError) {
+      throw annotateReplaceError(copyError, sourcePath, targetPath);
+    }
+  }
+
+  throw annotateReplaceError(lastError, sourcePath, targetPath);
+}
+
+function isTransientReplaceError(error: unknown): boolean {
+  return isErrnoException(error) &&
+    typeof error.code === "string" &&
+    transientReplaceErrorCodes.has(error.code);
+}
+
+function annotateReplaceError(error: unknown, sourcePath: string, targetPath: string): Error {
+  if (error instanceof Error) {
+    error.message = `CultCache failed to replace ${targetPath} from ${sourcePath}: ${error.message}`;
+    return error;
+  }
+
+  return new Error(`CultCache failed to replace ${targetPath} from ${sourcePath}: ${String(error)}`);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
 
 function normalizePayload(payload: unknown): Uint8Array {
@@ -160,4 +211,8 @@ function normalizePayload(payload: unknown): Uint8Array {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === "object" && error !== null && "code" in error;
 }
