@@ -1002,8 +1002,8 @@ function attachNodeEnvelopeListener(
     }
     device.queue.writeBuffer(buffer, 0, state.data);
   };
-  target.addEventListener("epiphanygraph-node-envelopes", onEnvelopes as EventListener);
-  return () => target.removeEventListener("epiphanygraph-node-envelopes", onEnvelopes as EventListener);
+  target.addEventListener("norn-node-envelopes", onEnvelopes as EventListener);
+  return () => target.removeEventListener("norn-node-envelopes", onEnvelopes as EventListener);
 }
 
 function screenEnvelopeToArtworkUv(
@@ -1047,8 +1047,8 @@ function attachViewportTransformListener(
     };
     state.received = true;
   };
-  target.addEventListener("epiphanygraph-viewport-transform", onTransform as EventListener);
-  return () => target.removeEventListener("epiphanygraph-viewport-transform", onTransform as EventListener);
+  target.addEventListener("norn-viewport-transform", onTransform as EventListener);
+  return () => target.removeEventListener("norn-viewport-transform", onTransform as EventListener);
 }
 
 function isGraphBounds(value: unknown): value is GraphViewportTransform["bounds"] {

@@ -31,7 +31,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@epiphanygraph/epiphany-graph-viewer": "file:../EpiphanyGraph/web/epiphany-graph-viewer",
+    "@gamecult/norn-viewer": "file:../Norn/web/norn-viewer",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

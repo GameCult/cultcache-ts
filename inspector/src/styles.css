@@ -203,7 +203,7 @@ code {
   pointer-events: none;
 }
 
-.epiphany-graph-overlay-panel {
+.norn-overlay-panel {
   background: rgba(4, 11, 16, 0.72) !important;
   border-color: rgba(51, 230, 243, 0.22) !important;
   box-shadow: 0 0 28px rgba(51, 230, 243, 0.08), 0 18px 48px rgba(0, 0, 0, 0.28) !important;
@@ -236,7 +236,7 @@ code {
   stroke-linejoin: round;
 }
 
-.huginn-graph-shell .epiphany-graph-overlay-panel,
+.huginn-graph-shell .norn-overlay-panel,
 .floating-panel {
   opacity: 0.28;
   transition:
@@ -246,8 +246,8 @@ code {
     background-color 160ms ease;
 }
 
-.huginn-graph-shell .epiphany-graph-overlay-panel:hover,
-.huginn-graph-shell .epiphany-graph-overlay-panel:focus-within,
+.huginn-graph-shell .norn-overlay-panel:hover,
+.huginn-graph-shell .norn-overlay-panel:focus-within,
 .floating-panel:hover,
 .floating-panel:focus-within,
 .floating-panel.is-primary {

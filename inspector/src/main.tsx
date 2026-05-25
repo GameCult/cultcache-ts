@@ -1,4 +1,4 @@
-import { EpiphanyGraphViewer, type EpiphanyGraphEdge, type EpiphanyGraphNode, type EpiphanyGraphsState, type ViewerSelection } from "@epiphanygraph/epiphany-graph-viewer";
+import { NornViewer, type NornGraphEdge, type NornGraphNode, type NornGraphsState, type ViewerSelection } from "@gamecult/norn-viewer";
 import { createRoot } from "react-dom/client";
 import { Component, useMemo, useState, type DragEvent, type ReactNode } from "react";
 
@@ -10,14 +10,14 @@ type Selection = {
   record: number;
 };
 
-type NodeArticle = NonNullable<Parameters<typeof EpiphanyGraphViewer>[0]["nodeArticle"]>;
+type NodeArticle = NonNullable<Parameters<typeof NornViewer>[0]["nodeArticle"]>;
 
 type RawSelection =
   | { kind: "record"; index: number }
   | { kind: "value"; recordIndex: number; path: string; value: unknown };
 
 type GraphProjection = {
-  state: EpiphanyGraphsState;
+  state: NornGraphsState;
   recordNodeIds: string[];
   nodeSelections: Map<string, RawSelection>;
   edgeSelections: Map<string, RawSelection>;
@@ -342,7 +342,7 @@ function InspectionView({
   return (
     <div className="inspector-stage">
       <section className="graph-panel">
-        <EpiphanyGraphViewer
+        <NornViewer
           className="huginn-graph-shell"
           state={graphProjection.state}
           initialGraph="dataflow"
@@ -540,13 +540,13 @@ function Facts({ rows }: { rows: Array<[string, string]> }) {
 }
 
 function buildGraphProjection(inspection: CultCacheInspection): GraphProjection {
-  const dataflowNodes: EpiphanyGraphNode[] = [];
-  const dataflowEdges: EpiphanyGraphEdge[] = [];
+  const dataflowNodes: NornGraphNode[] = [];
+  const dataflowEdges: NornGraphEdge[] = [];
   const recordNodeIds: string[] = [];
   const nodeSelections = new Map<string, RawSelection>();
   const edgeSelections = new Map<string, RawSelection>();
   let collapsedPayloadValues = 0;
-  const architectureNodes: EpiphanyGraphNode[] = [
+  const architectureNodes: NornGraphNode[] = [
     {
       id: "store",
       title: ".cc Store",
@@ -567,7 +567,7 @@ function buildGraphProjection(inspection: CultCacheInspection): GraphProjection 
       status: `${inspection.records.length} records`,
     },
   ];
-  const architectureEdges: EpiphanyGraphEdge[] = [
+  const architectureEdges: NornGraphEdge[] = [
     {
       id: "store-catalog",
       source_id: "store",
@@ -659,8 +659,8 @@ function appendPayloadRegions({
   depth,
   budget,
 }: {
-  nodes: EpiphanyGraphNode[];
-  edges: EpiphanyGraphEdge[];
+  nodes: NornGraphNode[];
+  edges: NornGraphEdge[];
   nodeSelections: Map<string, RawSelection>;
   edgeSelections: Map<string, RawSelection>;
   recordIndex: number;
@@ -774,7 +774,7 @@ function countPayloadDescendants(value: unknown, limit = 20_000): number {
   return count;
 }
 
-function regionNode(id: string, title: string, value: unknown, path: string): EpiphanyGraphNode {
+function regionNode(id: string, title: string, value: unknown, path: string): NornGraphNode {
   return {
     id,
     title,
@@ -788,7 +788,7 @@ function recordNodeId(record: InspectedRecord, index: number): string {
   return nodeId("record", `${record.schemaId}:${record.key}:${index}`);
 }
 
-function valueEdge(sourceId: string, targetId: string, kind: string, label: string): EpiphanyGraphEdge {
+function valueEdge(sourceId: string, targetId: string, kind: string, label: string): NornGraphEdge {
   return {
     id: edgeId(sourceId, targetId, kind),
     source_id: sourceId,

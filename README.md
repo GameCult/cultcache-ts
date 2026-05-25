@@ -63,7 +63,7 @@ generated Huginn executable must use that package version in its filename.
 
 Huginn is read-only. Drop a `.cc`, `.msgpack`, or `.mpack` file onto the window to
 inspect the snapshot header, schema catalog, records, decoded MessagePack
-payload previews, and an EpiphanyGraph cloud of the file's structured payload data
+payload previews, and an Norn graph cloud of the file's structured payload data
 without registering application schemas.
 
 Huginn's background field uses the graph node AABB as its single world-space
