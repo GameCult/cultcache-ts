@@ -1,4 +1,5 @@
 export { CultCache, CultCacheBuilder } from "./cult-cache";
+export { buildHuginnEveDsl } from "./huginn-eve-dsl";
 export { inspectCultCacheBytes } from "./cult-cache-inspector";
 export { defineDocumentRegistry, defineDocumentType } from "./document";
 export { SingleFileMessagePackBackingStore } from "./single-file-messagepack-backing-store";

@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { CultCache } from "../src/cult-cache";
 import { inspectCultCacheBytes } from "../src/cult-cache-inspector";
+import { buildHuginnEveDsl } from "../src/huginn-eve-dsl";
 import { defineDocumentRegistry, defineDocumentType } from "../src/document";
 import { SingleFileMessagePackBackingStore } from "../src/single-file-messagepack-backing-store";
 import type { CacheBackingStore, CultCacheEnvelope, CultCacheSchema } from "../src/types";
@@ -563,6 +564,20 @@ test("CultCache inspector decodes v1 store catalog and record payloads from byte
     written.body,
     written.tags,
   ]);
+});
+
+test("Huginn projects .cc inspection into Eve DSL", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "huginn-eve-dsl-"));
+  const file = join(tempDir, "cache.cc");
+  const written = await writeTsInteropStore(file, "eve-surface");
+  const inspection = inspectCultCacheBytes(file, await readFile(file));
+  const dsl = buildHuginnEveDsl(inspection);
+
+  assert.match(dsl, /^surface cultcache\.huginn\.inspector "Huginn \.cc Inspector"/mu);
+  assert.match(dsl, /collection huginn\.catalog\.entries/u);
+  assert.match(dsl, /collection huginn\.records\.entries/u);
+  assert.match(dsl, new RegExp(written.documentId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(dsl, /\.cc bytes are authority; Huginn only emits Eve DSL\./u);
 });
 
 interface InteropNote {

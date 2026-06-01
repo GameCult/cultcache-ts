@@ -1,9 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SingleFileMessagePackBackingStore = exports.defineDocumentType = exports.defineDocumentRegistry = exports.inspectCultCacheBytes = exports.CultCacheBuilder = exports.CultCache = void 0;
+exports.SingleFileMessagePackBackingStore = exports.defineDocumentType = exports.defineDocumentRegistry = exports.inspectCultCacheBytes = exports.buildHuginnEveDsl = exports.CultCacheBuilder = exports.CultCache = void 0;
 var cult_cache_1 = require("./cult-cache");
 Object.defineProperty(exports, "CultCache", { enumerable: true, get: function () { return cult_cache_1.CultCache; } });
 Object.defineProperty(exports, "CultCacheBuilder", { enumerable: true, get: function () { return cult_cache_1.CultCacheBuilder; } });
+var huginn_eve_dsl_1 = require("./huginn-eve-dsl");
+Object.defineProperty(exports, "buildHuginnEveDsl", { enumerable: true, get: function () { return huginn_eve_dsl_1.buildHuginnEveDsl; } });
 var cult_cache_inspector_1 = require("./cult-cache-inspector");
 Object.defineProperty(exports, "inspectCultCacheBytes", { enumerable: true, get: function () { return cult_cache_inspector_1.inspectCultCacheBytes; } });
 var document_1 = require("./document");

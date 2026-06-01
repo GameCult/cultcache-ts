@@ -38,47 +38,34 @@ CultCache files may use the `.cc` extension. The bytes are still the canonical
 `cultcache.store.v1` MessagePack snapshot; the extension is the human handle, not
 a second format.
 
-Run the local inspector during development:
+Huginn is the runtime steward for `.cc` and Persona-state inspection. VoidBot may
+carry compatibility MCP calls while the swarm is still wired that way, but
+inspection ownership lives here: schema catalogs, persisted envelopes, decoded
+payload previews, read-only state traversal, and the Eve DSL that lets any
+runtime render those facts without becoming the state owner.
 
-```sh
-npm run dev:inspector
-```
+Huginn does not ship an Electron app, React renderer, Vite dashboard, or local
+presentation runtime. That was the wrong owner. Huginn speaks CultMesh and Eve:
+it inspects bytes, emits Eve DSL, and lets the consuming runtime lower that DSL
+into browser, native, overlay, or other local UI.
 
-Build the Vite inspector bundle:
+`inspectCultCacheBytes(...)` reads `.cc`, `.msgpack`, or `.mpack` bytes and
+returns the snapshot header, schema catalog, records, and decoded MessagePack
+payload previews without registering application schemas.
 
-```sh
-npm run build:inspector
-```
+`buildHuginnEveDsl(...)` lowers that inspection into Eve DSL for provider id
+`cultcache.huginn.inspector`. The `.cc` bytes remain authority; the Eve surface
+compiled from the DSL is a read-only operator witness:
 
-Build the desktop package:
+- source file path, format, and byte count;
+- schema catalog entries, versions, ids, and member counts;
+- persisted records, schema names, timestamps, payload byte counts, and decode
+  status.
 
-```sh
-npm run dist:inspector
-```
-
-Release builds must carry a new semantic version before any deployable artifact
-is produced. While the package is pre-1.0, breaking public behavior increments
-the minor version, compatible fixes increment the patch version, and the
-generated Huginn executable must use that package version in its filename.
-
-Huginn is read-only. Drop a `.cc`, `.msgpack`, or `.mpack` file onto the window to
-inspect the snapshot header, schema catalog, records, decoded MessagePack
-payload previews, and an Norn graph cloud of the file's structured payload data
-without registering application schemas.
-
-Huginn's background field uses the graph node AABB as its single world-space
-authority. The WebGPU particle pass keeps a million particle slots available,
-intersects the current screen bounds with the artwork bounds, and assigns only
-visible quadtree cells to those slots. Each visible cell is seeded with the
-Aetheria Stardust `RandomFirst` hash and xorshift follow-up sequence, then each
-particle pair trades opacity with sine/cosine phase while tracing a short
-segment through the packed flow texture. The packed map uses `RG` for flow, `B`
-for structure/curvature/detail pressure, and `A` for emission/field strength;
-particle color comes from the source Huginn albedo at the starting UV so the
-flow carries brushstrokes instead of repainting them at the final sample.
-Zooming raises the live quadtree level; coarse cells fade down while finer cells
-seeded from the same spatial lattice fade in around them, so detail density
-rises without changing the field's identity.
+The next runtime cut is a Huginn CultMesh provider that publishes the same Eve
+DSL directly so Eve clients can browse `.cc` files as dashboards from inside
+their own runtime instead of asking VoidBot to impersonate a state inspector over
+MCP.
 
 ## Example
 
