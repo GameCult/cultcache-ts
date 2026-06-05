@@ -1,4 +1,4 @@
-import type { CultCacheInspection, InspectedCatalogEntry, InspectedRecord } from "./cult-cache-inspector";
+import type { CultCacheInspection, InspectedCatalogEntry, InspectedRecord } from "cultcache-ts/inspection";
 
 export function buildHuginnEveDsl(inspection: CultCacheInspection): string {
   return [
