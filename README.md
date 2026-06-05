@@ -1,46 +1,40 @@
 # Huginn
 
-Huginn is the `.cc` inspection and projection surface for CultCache state.
+Huginn reads CultCache `.cc` state and emits Eve DSL.
 
 CultLib owns the CultCache implementation: document registration, MessagePack
 payloads, schema catalogs, backing stores, and the canonical
-`cultcache.store.v1` snapshot parser/writer. Huginn consumes that package and
-turns `.cc`, `.msgpack`, or `.mpack` bytes into read-only operator surfaces.
+`cultcache.store.v1` snapshot parser/writer. Huginn consumes CultLib's
+`cultcache-ts/inspection` surface and projects inspection results into UI
+documents that Eve-capable runtimes can lower.
 
-## Current Shape
+## Authority
 
-- `cultcache-ts` is loaded from `../CultLib/packages/cultcache-ts`
-- `src/huginn-eve-dsl.ts` lowers a CultCache inspection into Eve DSL
-- `inspector/` contains the local React/Norn visual inspector
-- `electron/` packages the inspector as a desktop Huginn build
-- Huginn does not write `.cc` files or decide CultCache persistence behavior
+- Owner: Huginn owns `.cc` inspection projection, not `.cc` persistence.
+- Input: `.cc`, `.msgpack`, or `.mpack` bytes readable by CultLib.
+- Output: Eve DSL for `cultcache.huginn.inspector`.
+- Renderers: browser, native, overlay, TUI, or future rooms lower the emitted
+  DSL without becoming state owners.
 
-## Development
+There is no Electron app, Vite dashboard, React renderer, or Norn-owned
+presentation path in this repo. If a runtime wants to display Huginn, it should
+consume the emitted Eve DSL.
+
+## CLI
 
 ```sh
 npm install
 npm run build
-npm run dev:inspector
+npx huginn path/to/state.cc > huginn.eve
 ```
 
-Build the Vite inspector bundle:
+The CLI writes Eve DSL to stdout and errors to stderr.
 
-```sh
-npm run build:inspector
+## API
+
+```ts
+import { inspectCultCacheBytes, buildHuginnEveDsl } from "@gamecult/huginn";
+
+const inspection = inspectCultCacheBytes(filePath, bytes);
+const eveDsl = buildHuginnEveDsl(inspection);
 ```
-
-Build the desktop package:
-
-```sh
-npm run dist:inspector
-```
-
-Release builds must carry a new semantic version before any deployable artifact
-is produced. While the package is pre-1.0, breaking public behavior increments
-the minor version, compatible fixes increment the patch version, and the
-generated Huginn executable must use that package version in its filename.
-
-Huginn is read-only. Drop a `.cc`, `.msgpack`, or `.mpack` file onto the window
-to inspect the snapshot header, schema catalog, records, decoded MessagePack
-payload previews, and an Norn graph cloud of the file's structured payload data
-without registering application schemas.

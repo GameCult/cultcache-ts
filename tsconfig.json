@@ -17,7 +17,8 @@
   },
   "include": [
     "src/index.ts",
-    "src/huginn-eve-dsl.ts"
+    "src/huginn-eve-dsl.ts",
+    "src/cli.ts"
   ],
   "exclude": [
     "test/**/*.ts"
